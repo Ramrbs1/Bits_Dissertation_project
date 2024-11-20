@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secrets
+type: Opaque
+data:
+  POSTGRES_USER: cG9zdGdyZXM=
+  POSTGRES_PASSWORD: cG9zdGdyZXM=
+  POSTGRES_DB: c2FtcGxlZGI=
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+
+    spec:
+      containers:
+      - name: postgres-container
+        image: postgres:14.3
+        env:
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: postgres-secrets
+                key: POSTGRES_USER
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-secrets
+                key: POSTGRES_PASSWORD
+          - name: POSTGRES_DB
+            valueFrom:
+              secretKeyRef:
+                name: postgres-secrets
+                key: POSTGRES_DB
+        ports:
+        - containerPort: 5432
+        resources:
+          requests:
+            memory: "256Mi"  # Minimum memory the pod is guaranteed
+            cpu: "200m"       # Minimum CPU the pod is guaranteed
+          limits:
+            memory: "512Mi"  # Maximum memory the pod can use
+            cpu: "500m"       # Maximum CPU the pod can use
+        volumeMounts:
+        - name: init-sql-script
+          mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: init-sql-script
+        configMap:
+          name: postgres-init-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+

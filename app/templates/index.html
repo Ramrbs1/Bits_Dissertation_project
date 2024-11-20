@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask App</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to the Flask App!</h1>
+    
+    <button id="insertRowButton">Insert Random Row</button>
+    <button id="rowCountButton">Get Row Count</button>
+
+    <h2>Output</h2>
+    <pre id="output"></pre>
+
+    <h2>Fetch Rows</h2>
+    <input type="number" id="numRowsInput" placeholder="Enter number of rows" />
+    <button id="fetchRowsButton">Fetch Rows</button>
+
+    <h2>Fetched Rows</h2>
+    <table id="rowsTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Address</th>
+            </tr>
+        </thead>
+        <tbody id="rowsBody">
+            <!-- Fetched rows will be inserted here -->
+        </tbody>
+    </table>
+
+    <script>
+        document.getElementById('insertRowButton').onclick = async function() {
+            const response = await fetch('/insert-random-row', { method: 'POST' });
+            const result = await response.json();
+            document.getElementById('output').textContent = JSON.stringify(result);
+        };
+
+        document.getElementById('rowCountButton').onclick = async function() {
+            const response = await fetch('/row-count');
+            const result = await response.json();
+            document.getElementById('output').textContent = JSON.stringify(result);
+        };
+
+        document.getElementById('fetchRowsButton').onclick = async function() {
+            const numRows = document.getElementById('numRowsInput').value;
+            const response = await fetch('/fetch-rows', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ num_rows: numRows }),
+            });
+            const result = await response.json();
+
+            // Clear existing rows in the table
+            const rowsBody = document.getElementById('rowsBody');
+            rowsBody.innerHTML = '';
+
+            // Populate table with fetched rows
+            result.rows.forEach(row => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `<td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td>`;
+                rowsBody.appendChild(newRow);
+            });
+
+            // Clear output section for fetch rows action
+            document.getElementById('output').textContent = '';
+        };
+    </script>
+</body>
+</html>
+

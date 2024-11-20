@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      receiver: 'email-alerts'
+    receivers:
+      - name: 'email-alerts'
+        email_configs:
+          - to: sunrammoon1@gmail.com
+            send_resolved: true
+            from: sunrammoon@gmail.com
+            smarthost: smtp.gmail.com:587
+            auth_username: sunrammoon@gmail.com
+            auth_password: awgixzbupghyseli
+            require_tls: true
+            tls_config:
+              insecure_skip_verify: false

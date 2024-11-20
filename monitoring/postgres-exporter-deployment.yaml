@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: postgres-exporter
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: prometheuscommunity/postgres-exporter:v0.15.0
+          env:
+            - name: DATA_SOURCE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials-secret
+                  key: postgres-uri
+          args:
+            - "--config.file=/etc/postgres_exporter/postgres_exporter.yml"
+          ports:
+            - containerPort: 9187
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/postgres_exporter
+      volumes:
+        - name: config-volume
+          configMap:
+            name: postgres-exporter-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  namespace: monitoring
+spec:
+  ports:
+    - port: 9187
+      targetPort: 9187
+  selector:
+    app: postgres-exporter

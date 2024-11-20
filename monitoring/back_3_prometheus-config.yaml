@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 2m
+    alerting:
+      alertmanagers:
+      - static_configs:
+        - targets:
+          - alertmanager:9093  # The service name and port of Alertmanager
+    scrape_configs:
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: node
+        metrics_path: /metrics
+        scheme: https
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      - job_name: 'kubernetes-container-metrics'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: '.*(coredns|kube-proxy|aws-eks-nodeagent|metrics-server|eks-pod-identity-agent-init|eks-pod-identity-agent|aws-vpc-cni-init|postgres-container).*'
+            action: drop
+          - source_labels: [__meta_kubernetes_pod_label_name]
+            target_label: container
+      
+      - job_name: 'postgresql'
+        static_configs:
+          - targets: ['postgres-exporter.monitoring.svc.cluster.local:9187']
+
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - action: keep
+            source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            regex: "true"
+          - action: drop
+            source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "postgres"
+
+      - job_name: 'kubernetes-dns'
+        static_configs:
+          - targets: ['kube-dns.kube-system.svc.cluster.local:9153']
+
+      - job_name: 'kubernetes-services'
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - action: keep
+            source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          - action: drop
+            source_labels: [__meta_kubernetes_service_port_number]
+            regex: "53|443|5432"
+        metrics_path: /metrics
+        scheme: http
+    rule_files:
+      - "/etc/prometheus/alert_rules.yml"
+
+  alert_rules.yml: |
+    groups:
+      - name: Pod_Alerts
+        rules:
+          - alert: HighCpuUsage
+            expr: avg by(instance)(rate(container_cpu_usage_seconds_total[10s])) > 0.3
+            for: 30s
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage detected"
+              description: "CPU usage has been above 30% for more than 10 Seconds."
+          # High Memory Usage Alert
+          - alert: HighMemoryUsage
+            expr: avg by(instance)(container_memory_working_set_bytes / container_spec_memory_limit_bytes) > 0.3
+            for: 30s
+            labels:
+              severity: warning
+            annotations:
+              summary: "High Memory usage detected"
+              description: "Memory usage has been above 30% for more than 10 Seconds."
+      - name: Node_is_down
+        rules:
+          - alert: Node_is_down
+            expr: up == 0
+            for: 30s
+            labels:
+              severity: page
+            annotations:
+              summary: "One of the k8 Node down"
+

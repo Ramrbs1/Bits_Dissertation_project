@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 2m
+    alerting:
+      alertmanagers:
+      - static_configs:
+        - targets:
+          - alertmanager:9093
+    scrape_configs:
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: node
+        metrics_path: /metrics
+        scheme: https
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+      - job_name: 'kubernetes-containers-metrics'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: '.*(postgres-container).*'
+            action: drop
+            target_label: container
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: kubernetes_namespace
+            action: keep
+            regex: ^(default|monitoring)$ 
+
+      - job_name: 'postgresql'
+        static_configs:
+          - targets: ['postgres-exporter.monitoring.svc.cluster.local:9187']
+
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets: ['kube-state-metrics.kube-system.svc.cluster.local:8080']
+
+      - job_name: 'kubernetes-dns'
+        static_configs:
+          - targets: ['kube-dns.kube-system.svc.cluster.local:9153']
+
+      - job_name: 'kubernetes-services'
+        kubernetes_sd_configs:
+          - role: service
+        metrics_path: /metrics
+        scheme: http
+        relabel_configs:
+          - action: keep
+            source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          - action: drop
+            source_labels: [__meta_kubernetes_service_port_number]
+            regex: "53|443|5432"
+
+    rule_files:
+      - "/etc/prometheus/alert_rules.yml"
+
+  alert_rules.yml: |
+    groups:
+      - name: Node_is_down
+        rules:
+          - alert: Node_is_down
+            expr: up == 0
+            for: 30s
+            labels:
+              severity: page
+            annotations:
+              summary: "One of the k8 Node down"
+

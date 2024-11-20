@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-exporter-config
+  namespace: monitoring
+data:
+  postgres_exporter.yml: |
+    # Valid, empty config file. No special configuration required unless you want to override defaults.
+
